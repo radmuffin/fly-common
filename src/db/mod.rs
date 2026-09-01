@@ -61,6 +61,65 @@ impl FlyDb {
     }
 }
 
+/// Spawns a background Tokio task that periodically runs PRAGMA wal_checkpoint(PASSIVE)
+/// on the given SQLite connection pool.
+///
+/// Runs every `interval`. If WAL file exceeds `page_threshold` pages, runs TRUNCATE mode instead.
+/// Task cancels gracefully when the returned `AbortHandle` is dropped.
+pub fn spawn_wal_checkpoint_task(
+    pool: DbPool,
+    interval: std::time::Duration,
+    page_threshold: u32,
+) -> tokio::task::AbortHandle {
+    let handle = tokio::task::spawn(async move {
+        let mut interval_timer = tokio::time::interval(interval);
+
+        loop {
+            interval_timer.tick().await;
+
+            let pool = pool.clone();
+            let checkpoint_result = tokio::task::spawn_blocking(move || {
+                let conn = pool.lock().unwrap();
+
+                // Easiest is to just use PRAGMA wal_checkpoint(PASSIVE) which returns (busy, log, checkpointed).
+                // Then if log > page_threshold, run PRAGMA wal_checkpoint(TRUNCATE).
+
+                let result = conn.query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
+                    let log: u32 = row.get(1)?;
+                    Ok(log)
+                });
+
+                match result {
+                    Ok(log) => {
+                        if log > page_threshold {
+                            tracing::info!(
+                                "WAL size {} exceeds threshold {}, running TRUNCATE checkpoint",
+                                log,
+                                page_threshold
+                            );
+                            if let Err(e) = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)", []) {
+                                tracing::warn!("WAL TRUNCATE checkpoint failed: {}", e);
+                            }
+                        } else {
+                            tracing::info!("WAL checkpoint PASSIVE ran (log size: {})", log);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("WAL checkpoint PASSIVE failed: {}", e);
+                    }
+                }
+            })
+            .await;
+
+            if let Err(e) = checkpoint_result {
+                tracing::warn!("WAL checkpoint task panicked: {}", e);
+            }
+        }
+    });
+
+    handle.abort_handle()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

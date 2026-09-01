@@ -317,6 +317,96 @@ pub fn validate_url_for_ssrf(raw_url: &str) -> Result<Url, String> {
     Ok(parsed_url)
 }
 
+/// Async DNS-pinning variant of URL SSRF validation.
+/// Uses `tokio::net::lookup_host` for non-blocking DNS resolution.
+/// Validates ALL resolved IPs — prevents TOCTOU DNS rebinding attacks.
+/// Returns (validated_url, first_public_ip) on success.
+pub async fn validate_url_for_ssrf_async(
+    raw_url: &str,
+) -> Result<(reqwest::Url, std::net::IpAddr), String> {
+    let clean_url = raw_url.trim();
+    if clean_url.is_empty() {
+        return Err("URL cannot be empty".to_string());
+    }
+
+    let full_url = if !clean_url.starts_with("http://") && !clean_url.starts_with("https://") {
+        if clean_url.contains("://") {
+            return Err(
+                "Disallowed URL scheme. Only 'http' and 'https' are permitted.".to_string(),
+            );
+        }
+        format!("https://{}", clean_url)
+    } else {
+        clean_url.to_string()
+    };
+
+    let url = Url::parse(&full_url).map_err(|e| format!("Invalid URL format: {}", e))?;
+
+    // 1. Scheme check
+    let scheme = url.scheme().to_ascii_lowercase();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("Invalid URL scheme '{}'.", scheme));
+    }
+
+    // 2. Host presence
+    let host_str = match url.host_str() {
+        Some(h) if !h.trim().is_empty() => h.trim(),
+        _ => return Err("URL must have a valid host".to_string()),
+    };
+
+    // 3. Hostname blacklist
+    if is_restricted_hostname(host_str) {
+        return Err(format!(
+            "Access to internal or reserved hostname '{}' is blocked.",
+            host_str
+        ));
+    }
+
+    // 4. IP literal check
+    let clean_host = host_str.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(ip) = clean_host.parse::<IpAddr>() {
+        if is_private_or_restricted_ip(ip) {
+            return Err(format!(
+                "Access to private or restricted IP address '{}' is blocked.",
+                ip
+            ));
+        }
+        return Ok((url, ip));
+    }
+
+    // 5. Async DNS Resolution
+    let port = url.port_or_known_default().unwrap_or(80);
+    let socket_addr_str = format!("{}:{}", host_str, port);
+
+    let addrs = match tokio::net::lookup_host(&socket_addr_str).await {
+        Ok(a) => a,
+        Err(e) => return Err(format!("DNS resolution failed for '{}': {}", host_str, e)),
+    };
+
+    let mut first_ip = None;
+    let mut resolved_any = false;
+
+    for addr in addrs {
+        resolved_any = true;
+        if is_private_or_restricted_ip(addr.ip()) {
+            return Err(format!(
+                "Host '{}' resolved to private or restricted IP address '{}'. Request blocked.",
+                host_str,
+                addr.ip()
+            ));
+        }
+        if first_ip.is_none() {
+            first_ip = Some(addr.ip());
+        }
+    }
+
+    if !resolved_any {
+        return Err(format!("Could not resolve hostname '{}'.", host_str));
+    }
+
+    Ok((url, first_ip.unwrap()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -428,3 +428,127 @@ fn test_csv_and_chunking_integration() {
     let chunked: Vec<_> = chunk_slice(&tasks, 1).collect();
     assert_eq!(chunked.len(), 2);
 }
+#[cfg(feature = "sse")]
+#[tokio::test]
+async fn test_sse_hub_broadcast() {
+    let hub = SseBroadcastHub::new(32);
+    let mut sub = hub.subscribe("channel_beta");
+
+    let msg = SseMessage {
+        channel: "channel_beta".to_string(),
+        event: "pin_added".to_string(),
+        data: serde_json::json!({ "id": 1 }),
+        id: Some("evt_1".to_string()),
+    };
+
+    let delivered = hub.broadcast(msg).expect("broadcast");
+    assert_eq!(delivered, 1);
+
+    let received = sub.recv().await.expect("recv");
+    assert_eq!(received.event, "pin_added");
+    assert_eq!(received.id.unwrap(), "evt_1");
+}
+
+#[tokio::test]
+async fn test_fly_replay_passthrough_in_local_dev() {
+    let server = FlyServer::builder().with_fly_replay("ord").nest(
+        "/api",
+        Router::new().route("/ping", axum::routing::post(|| async { "pong" })),
+    );
+
+    let router = server.build_router();
+
+    // Temporarily unset FLY_REGION just to be safe
+    std::env::remove_var("FLY_REGION");
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/ping")
+        .body(Body::empty())
+        .unwrap();
+
+    let res = router.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_validate_url_ssrf_async_blocks_private() {
+    let res = validate_url_for_ssrf_async("http://127.0.0.1/").await;
+    assert!(res.is_err());
+}
+
+#[cfg(feature = "db")]
+#[tokio::test]
+async fn test_wal_checkpoint_task_spawns() {
+    let pool = FlyDb::open_shared_in_memory().expect("open db");
+    let handle =
+        fly_common::db::spawn_wal_checkpoint_task(pool, std::time::Duration::from_millis(50), 100);
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    handle.abort();
+}
+
+#[cfg(feature = "metrics")]
+#[tokio::test]
+async fn test_metrics_counter_increments() {
+    let server = FlyServer::builder().with_metrics_exporter("/metrics").nest(
+        "/api",
+        Router::new().route("/test", axum::routing::get(|| async { "ok" })),
+    );
+    let router = server.build_router();
+
+    // Hit /api/test twice
+    for _ in 0..2 {
+        let req = axum::http::Request::builder()
+            .uri("/api/test")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let res = router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), axum::http::StatusCode::OK);
+    }
+
+    // GET /metrics
+    let req = axum::http::Request::builder()
+        .uri("/metrics")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let res = router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), axum::http::StatusCode::OK);
+    let bytes = http_body_util::BodyExt::collect(res.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let body = String::from_utf8(bytes.to_vec()).unwrap();
+
+    assert!(body.contains("fly_requests_total{status=\"2xx\"} 2"));
+}
+
+#[cfg(feature = "rate-limit")]
+#[tokio::test]
+async fn test_rate_limiter_allows_and_blocks() {
+    let limiter = fly_common::rate_limit::RateLimiter::new(3, std::time::Duration::from_secs(60));
+    let ip = "1.2.3.4";
+
+    // 1st
+    assert_eq!(
+        limiter.check_and_consume(ip),
+        fly_common::rate_limit::RateLimitResult::Allowed
+    );
+    // 2nd
+    assert_eq!(
+        limiter.check_and_consume(ip),
+        fly_common::rate_limit::RateLimitResult::Allowed
+    );
+    // 3rd
+    assert_eq!(
+        limiter.check_and_consume(ip),
+        fly_common::rate_limit::RateLimitResult::Allowed
+    );
+
+    // 4th should block
+    match limiter.check_and_consume(ip) {
+        fly_common::rate_limit::RateLimitResult::Blocked { retry_after_secs } => {
+            assert!(retry_after_secs > 0 && retry_after_secs <= 60);
+        }
+        _ => panic!("Expected blocked"),
+    }
+}

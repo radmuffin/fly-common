@@ -17,6 +17,18 @@ pub mod sync;
 #[cfg(feature = "io")]
 pub mod io;
 
+#[cfg(feature = "sse")]
+pub mod sse;
+
+#[cfg(feature = "metrics")]
+pub mod metrics;
+
+#[cfg(feature = "rate-limit")]
+pub mod rate_limit;
+
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
+
 pub mod prelude {
     pub use crate::auth::UserToken;
     pub use crate::db::{DbPool, FlyDb};
@@ -27,6 +39,7 @@ pub mod prelude {
     pub use crate::security::{
         build_safe_http_client, is_private_or_restricted_ip, is_restricted_hostname,
         set_security_headers, standard_cors_layer, validate_parsed_url, validate_url_for_ssrf,
+        validate_url_for_ssrf_async,
     };
     pub use crate::server::FlyServer;
 
@@ -41,4 +54,16 @@ pub mod prelude {
 
     #[cfg(feature = "io")]
     pub use crate::io::{chunk_slice, parse_csv};
+
+    #[cfg(feature = "sse")]
+    pub use crate::sse::{SseBroadcastHub, SseMessage};
+
+    #[cfg(feature = "metrics")]
+    pub use crate::metrics::{metrics_handler, FlyMetrics};
+
+    #[cfg(feature = "rate-limit")]
+    pub use crate::rate_limit::{RateLimitResult, RateLimiter};
+
+    #[cfg(feature = "telemetry")]
+    pub use crate::telemetry::{trace_context_middleware, TraceContext, TraceContextExt};
 }

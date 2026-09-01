@@ -6,6 +6,9 @@
 export class FlyToast {
   static container = null;
 
+  /**
+   * Ensure the toast container element exists in the DOM.
+   */
   static init() {
     if (!this.container) {
       this.container = document.createElement('div');
@@ -14,6 +17,12 @@ export class FlyToast {
     }
   }
 
+  /**
+   * Display a toast notification.
+   * @param {string} message - Text to display (HTML-escaped automatically).
+   * @param {'info'|'success'|'error'} [type='info'] - Visual variant.
+   * @param {number} [duration=3500] - Auto-dismiss delay in milliseconds.
+   */
   static show(message, type = 'info', duration = 3500) {
     this.init();
     const toast = document.createElement('div');
@@ -34,10 +43,18 @@ export class FlyToast {
     }, duration);
   }
 
+  /** @param {string} msg @param {number} [dur] */
   static success(msg, dur) { this.show(msg, 'success', dur); }
+  /** @param {string} msg @param {number} [dur] */
   static error(msg, dur) { this.show(msg, 'error', dur); }
+  /** @param {string} msg @param {number} [dur] */
   static info(msg, dur) { this.show(msg, 'info', dur); }
 
+  /**
+   * HTML-escape a string to prevent XSS when inserting into the DOM.
+   * @param {string} str
+   * @returns {string}
+   */
   static escape(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, m => ({
@@ -49,13 +66,30 @@ export class FlyToast {
 export class FlyTheme {
   static STORAGE_KEY = 'fly_theme_mode';
 
+  /**
+   * Read the stored theme preference and apply it.
+   * Safe to call in private-browsing mode where localStorage may throw.
+   */
   static init() {
-    const saved = localStorage.getItem(this.STORAGE_KEY) || 'system';
+    let saved = 'system';
+    try {
+      saved = localStorage.getItem(this.STORAGE_KEY) || 'system';
+    } catch (_) {
+      // localStorage unavailable (private browsing / blocked storage)
+    }
     this.apply(saved);
   }
 
+  /**
+   * Apply a theme mode and persist the preference.
+   * @param {'light'|'dark'|'system'} mode
+   */
   static apply(mode) {
-    localStorage.setItem(this.STORAGE_KEY, mode);
+    try {
+      localStorage.setItem(this.STORAGE_KEY, mode);
+    } catch (_) {
+      // ignore write failure in restricted environments
+    }
     if (mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.setAttribute('data-theme', 'dark');
     } else {
@@ -63,6 +97,10 @@ export class FlyTheme {
     }
   }
 
+  /**
+   * Toggle between light and dark themes.
+   * @returns {'light'|'dark'} The newly applied theme.
+   */
   static toggle() {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';

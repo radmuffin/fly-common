@@ -11,6 +11,8 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use tower_http::services::{ServeDir, ServeFile};
 
+pub mod fly_replay;
+
 use crate::models::AppInfo;
 use crate::security::{set_security_headers, standard_cors_layer};
 
@@ -23,6 +25,13 @@ pub struct FlyServer {
     static_dir: Option<PathBuf>,
     app_router: Router,
     app_info: Option<AppInfo>,
+    primary_region: Option<String>,
+    #[cfg(feature = "db")]
+    sqlite_pool: Option<crate::db::DbPool>,
+    #[cfg(feature = "rate-limit")]
+    rate_limiter: Option<crate::rate_limit::RateLimiter>,
+    #[cfg(feature = "metrics")]
+    metrics: Option<(String, crate::metrics::FlyMetrics)>,
 }
 
 impl FlyServer {
@@ -41,6 +50,13 @@ impl FlyServer {
             static_dir: None,
             app_router: Router::new(),
             app_info: None,
+            primary_region: None,
+            #[cfg(feature = "db")]
+            sqlite_pool: None,
+            #[cfg(feature = "rate-limit")]
+            rate_limiter: None,
+            #[cfg(feature = "metrics")]
+            metrics: None,
         }
     }
 
@@ -89,6 +105,30 @@ impl FlyServer {
         self
     }
 
+    /// Enables Fly.io multi-region write-forwarding.
+    pub fn with_fly_replay(mut self, primary_region: impl Into<String>) -> Self {
+        self.primary_region = Some(primary_region.into());
+        self
+    }
+
+    #[cfg(feature = "db")]
+    pub fn with_sqlite_pool(mut self, pool: crate::db::DbPool) -> Self {
+        self.sqlite_pool = Some(pool);
+        self
+    }
+
+    #[cfg(feature = "rate-limit")]
+    pub fn with_rate_limiter(mut self, limiter: crate::rate_limit::RateLimiter) -> Self {
+        self.rate_limiter = Some(limiter);
+        self
+    }
+
+    #[cfg(feature = "metrics")]
+    pub fn with_metrics_exporter(mut self, path: &str) -> Self {
+        self.metrics = Some((path.to_string(), crate::metrics::FlyMetrics::new()));
+        self
+    }
+
     /// Builds the complete Axum Router.
     pub fn build_router(self) -> Router {
         let info = self.app_info.unwrap_or_else(|| AppInfo {
@@ -118,6 +158,14 @@ impl FlyServer {
             )
             .merge(embedded_static);
 
+        #[cfg(feature = "metrics")]
+        if let Some((ref path, ref metrics)) = self.metrics {
+            base_router = base_router.route(
+                path,
+                get(crate::metrics::metrics_handler).with_state(metrics.clone()),
+            );
+        }
+
         base_router = base_router.merge(self.app_router);
 
         if let Some(static_path) = self.static_dir {
@@ -126,25 +174,63 @@ impl FlyServer {
             base_router = base_router.fallback_service(static_service);
         }
 
-        base_router
+        let mut router = base_router
             .layer(middleware::from_fn(set_security_headers))
             .layer(standard_cors_layer())
-            .layer(DefaultBodyLimit::max(self.body_limit_bytes))
+            .layer(DefaultBodyLimit::max(self.body_limit_bytes));
+
+        if let Some(region) = self.primary_region {
+            router = router.layer(middleware::from_fn(move |req, next| {
+                fly_replay::fly_replay_middleware(region.clone(), req, next)
+            }));
+        }
+
+        #[cfg(feature = "rate-limit")]
+        if let Some(limiter) = self.rate_limiter {
+            router = router.layer(axum::middleware::from_fn_with_state(
+                limiter,
+                crate::rate_limit::rate_limit_middleware,
+            ));
+        }
+
+        #[cfg(feature = "metrics")]
+        if let Some((_, metrics)) = self.metrics {
+            router = router.layer(axum::middleware::from_fn_with_state(
+                metrics,
+                crate::metrics::metrics_middleware,
+            ));
+        }
+
+        router
     }
 
     /// Starts the server and listens for incoming connections and graceful shutdown signals.
     pub async fn serve(self) -> Result<(), Box<dyn std::error::Error>> {
         let port = self.port;
         let name = self.name.clone();
+
+        #[cfg(feature = "db")]
+        let sqlite_pool = self.sqlite_pool.clone();
+
         let app = self.build_router();
 
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
         println!("🚀 [{}] Server listening on http://0.0.0.0:{}", name, port);
 
+        #[cfg(feature = "db")]
+        let _wal_checkpoint_handle = sqlite_pool.map(|pool| {
+            crate::db::spawn_wal_checkpoint_task(pool, std::time::Duration::from_secs(30), 1000)
+        });
+
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
+
+        #[cfg(feature = "db")]
+        if let Some(handle) = _wal_checkpoint_handle {
+            handle.abort();
+        }
 
         Ok(())
     }

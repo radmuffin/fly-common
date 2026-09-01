@@ -24,7 +24,32 @@
 - **⚡ Real-Time Collaboration Hub (`features = ["ws"]`)**: Lightweight WebSocket pub/sub broadcasting hub for multi-user collaboration rooms and live state updates.
 - **👥 Document & List Sharing Protocol (`features = ["sync"]`)**: UUIDv4 share token generators and collaborative resource schemas.
 - **🗂️ Universal CSV & Batch Streamer (`features = ["io"]`)**: Streaming CSV deserializer and SQLite transaction chunking.
+- **📊 Prometheus Metrics (`features = ["metrics"]`)**: Counter/gauge/histogram registration and OpenMetrics exposition via `/metrics`.
+- **⏱️ Token Bucket Rate Limiter (`features = ["rate_limit"]`)**: Per-key rate limiting with `X-RateLimit-*` headers and `429` responses.
+- **📡 SSE Broadcast Hub (`features = ["sse"]`)**: Named-room Server-Sent Events broadcaster for real-time browser push.
+- **🔭 W3C Trace Context (`features = ["telemetry"]`)**: Pure-Rust traceparent header parser, propagator, and Axum middleware for distributed tracing — no heavy OpenTelemetry SDK required.
 - **🎨 Frontend Shell (Vanilla ES6)**: Zero-build UI helpers (`FlyToast`, `FlyTheme`, `FlyClient`) and design tokens.
+
+---
+
+## ⚙️ Feature Flags
+
+| Flag         | Default | Enables |
+|--------------|---------|---------|
+| `db`         | ✅      | `FlyDb` SQLite connection builder and migration runner |
+| `auth`       | ✅      | `UserToken` extractor |
+| `security`   | ✅      | SSRF validator, hardened HTTP client, security-header middleware, CORS layer |
+| `server`     | ✅      | `FlyServer` builder, health endpoints, embedded static assets |
+| `qr`         | ✅      | Pure-Rust SVG QR code generator |
+| `scraper`    | ❌      | OpenGraph/Twitter Card/JSON-LD metadata scraper |
+| `ws`         | ❌      | WebSocket broadcast hub |
+| `sync`       | ❌      | UUIDv4 share-token and user-token generators |
+| `io`         | ❌      | Streaming CSV deserializer and SQLite batch chunker |
+| `metrics`    | ❌      | Prometheus-compatible `/metrics` endpoint |
+| `rate_limit` | ❌      | Per-key token-bucket rate limiter and Axum middleware |
+| `sse`        | ❌      | SSE broadcast hub and Axum handler helpers |
+| `telemetry`  | ❌      | W3C traceparent propagation, middleware, and extractor |
+| `full`       | ❌      | All of the above combined |
 
 ---
 
@@ -39,7 +64,10 @@ fly_common = { git = "https://github.com/radmuffin/fly-common" }
 
 # Or with specific modular features:
 # fly_common = { git = "https://github.com/radmuffin/fly-common", features = ["ws", "scraper", "sync", "io"] }
+
+# Everything enabled:
 # fly_common = { git = "https://github.com/radmuffin/fly-common", features = ["full"] }
+# i.e. includes scraper, ws, sync, io, metrics, rate_limit, sse, telemetry
 ```
 
 ### 2. Backend Example
@@ -72,7 +100,22 @@ async fn list_items(user: UserToken) -> Json<ApiResponse<Vec<String>>> {
 }
 ```
 
-### 3. Frontend Example
+### 3. Distributed Tracing Example (`features = ["telemetry"]`)
+
+```rust
+use axum::{middleware, routing::get, Router};
+use fly_common::telemetry::{trace_context_middleware, TraceContextExt};
+
+let app = Router::new()
+    .route("/", get(handler))
+    .layer(middleware::from_fn(trace_context_middleware));
+
+async fn handler(TraceContextExt(ctx): TraceContextExt) -> String {
+    format!("trace_id={}", ctx.trace_id)
+}
+```
+
+### 4. Frontend Example
 
 ```html
 <link rel="stylesheet" href="/_fly/fly-base.css">
