@@ -21,7 +21,10 @@ pub async fn scrape_page_metadata(client: &Client, raw_url: &str) -> Result<Page
 
     let resp = client
         .get(raw_url)
-        .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (compatible; FlyApp/1.0; +https://fly.io)")
+        .header(
+            reqwest::header::USER_AGENT,
+            "Mozilla/5.0 (compatible; FlyApp/1.0; +https://fly.io)",
+        )
         .send()
         .await
         .map_err(|e| format!("Failed to fetch URL: {}", e))?;
@@ -127,7 +130,10 @@ mod tests {
 
         if let Ok(meta_sel) = Selector::parse("meta[property]") {
             for element in doc.select(&meta_sel) {
-                if let (Some(prop), Some(cont)) = (element.value().attr("property"), element.value().attr("content")) {
+                if let (Some(prop), Some(cont)) = (
+                    element.value().attr("property"),
+                    element.value().attr("content"),
+                ) {
                     match prop {
                         "og:title" => meta.title = Some(cont.to_string()),
                         "og:description" => meta.description = Some(cont.to_string()),
@@ -140,8 +146,14 @@ mod tests {
         }
 
         assert_eq!(meta.title.as_deref(), Some("The Best Tokyo Izakayas"));
-        assert_eq!(meta.description.as_deref(), Some("Discover back-alley yakitori & draft beer."));
-        assert_eq!(meta.image_url.as_deref(), Some("https://example.com/izakaya.jpg"));
+        assert_eq!(
+            meta.description.as_deref(),
+            Some("Discover back-alley yakitori & draft beer.")
+        );
+        assert_eq!(
+            meta.image_url.as_deref(),
+            Some("https://example.com/izakaya.jpg")
+        );
         assert_eq!(meta.site_name.as_deref(), Some("Tokyo Explorer"));
     }
 }

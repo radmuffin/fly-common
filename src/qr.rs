@@ -301,7 +301,9 @@ mod tests {
         let res = generate_qr_svg("https://example.com/sync?token=usr_123", 240, 2);
         assert!(res.svg.starts_with("<svg"));
         assert!(res.svg.ends_with("</svg>"));
-        assert!(res.data_url.starts_with("data:image/svg+xml;charset=utf-8,"));
+        assert!(res
+            .data_url
+            .starts_with("data:image/svg+xml;charset=utf-8,"));
         assert!(res.module_count > 20);
         assert_eq!(res.size, 240);
     }

@@ -39,12 +39,10 @@ impl BroadcastHub {
     /// Subscribes to or creates a room's broadcast receiver.
     pub fn subscribe(&self, room: &str) -> broadcast::Receiver<WsMessage> {
         let mut rooms = self.rooms.lock().unwrap();
-        let sender = rooms
-            .entry(room.to_string())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(self.capacity);
-                tx
-            });
+        let sender = rooms.entry(room.to_string()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(self.capacity);
+            tx
+        });
         sender.subscribe()
     }
 
