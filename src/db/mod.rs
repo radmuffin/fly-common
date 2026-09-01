@@ -48,7 +48,10 @@ impl FlyDb {
     }
 
     /// Runs a slice of raw SQL migration statements inside a single transaction.
-    pub fn run_migrations(conn: &mut Connection, migrations: &[&str]) -> Result<(), rusqlite::Error> {
+    pub fn run_migrations(
+        conn: &mut Connection,
+        migrations: &[&str],
+    ) -> Result<(), rusqlite::Error> {
         let tx = conn.transaction()?;
         for sql in migrations {
             tx.execute_batch(sql)?;
@@ -65,7 +68,7 @@ mod tests {
     #[test]
     fn test_fly_db_pragmas_and_migrations() {
         let mut conn = FlyDb::open_in_memory().expect("failed to open memory db");
-        
+
         let fk: i64 = conn
             .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
             .expect("query fk");

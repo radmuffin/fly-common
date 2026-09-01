@@ -1,5 +1,9 @@
 # 🪽 fly-common
 
+[![CI](https://github.com/radmuffin/fly-common/actions/workflows/ci.yml/badge.svg)](https://github.com/radmuffin/fly-common/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-14%20passed-brightgreen.svg)](https://github.com/radmuffin/fly-common/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+
 > Lightweight, high-performance, reusable application base for Fly.io Axum + SQLite web applications.
 
 `fly-common` provides the foundational building blocks to spin up production-ready, zero-cloud-cost web applications on Fly.io in minutes.
@@ -12,8 +16,9 @@
 - **🛡️ SSRF & Security Shield**: Hardened outbound HTTP client, RFC-1918 / cloud-metadata blocking, and automatic security headers (`nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin`).
 - **🗄️ Fly SQLite (`FlyDb`)**: Automatic Write-Ahead Logging (WAL) configuration, foreign keys, synchronous mode, and migration helpers.
 - **🔑 Anonymous Device Token (`UserToken`)**: Zero-friction user onboarding using cryptographic device tokens (`X-User-Token`) for instant state persistence without passwords.
+- **👤 User Profile & Collaborator Models**: Generic `UserProfile`, `UpdateUserProfileRequest`, and `CollaboratorProfile` models for multi-device sync and real-time collaboration.
 - **🎨 Frontend Shell (Vanilla ES6)**: Zero-build UI helpers (`FlyToast`, `FlyTheme`, `FlyClient`) and design tokens.
-- **⚡ Reusable GitHub Workflows**: Standardized Fly.io CI/CD pipeline callable from any downstream app repo.
+- **⚡ Reusable GitHub Workflows & CI**: Standardized CI workflow with automated `cargo test`, `clippy`, and formatting gates.
 
 ---
 

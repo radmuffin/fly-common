@@ -96,7 +96,7 @@ mod tests {
     fn test_api_response_serialization() {
         let ok_res = ApiResponse::ok("hello");
         assert!(ok_res.success);
-        assert_eq!(ok_res.data.as_deref(), Some("hello"));
+        assert_eq!(ok_res.data, Some("hello"));
 
         let err_res: ApiResponse<()> = ApiResponse::err("not found");
         assert!(!err_res.success);

@@ -301,15 +301,16 @@ pub fn validate_url_for_ssrf(raw_url: &str) -> Result<Url, String> {
 
     let full_url = if !clean_url.starts_with("http://") && !clean_url.starts_with("https://") {
         if clean_url.contains("://") {
-            return Err("Disallowed URL scheme. Only 'http' and 'https' are permitted.".to_string());
+            return Err(
+                "Disallowed URL scheme. Only 'http' and 'https' are permitted.".to_string(),
+            );
         }
         format!("https://{}", clean_url)
     } else {
         clean_url.to_string()
     };
 
-    let parsed_url = Url::parse(&full_url)
-        .map_err(|e| format!("Invalid URL format: {}", e))?;
+    let parsed_url = Url::parse(&full_url).map_err(|e| format!("Invalid URL format: {}", e))?;
 
     validate_parsed_url(&parsed_url)?;
 

@@ -1,18 +1,11 @@
-use axum::{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, middleware::Next, response::Response};
 use tower_http::cors::{Any, CorsLayer};
 
 /// Middleware that sets standard security response headers:
 /// - X-Content-Type-Options: nosniff
 /// - X-Frame-Options: SAMEORIGIN
 /// - Referrer-Policy: strict-origin-when-cross-origin
-pub async fn set_security_headers(
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn set_security_headers(req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
     headers.insert(

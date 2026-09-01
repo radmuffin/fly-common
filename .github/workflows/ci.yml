@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ trunk, main ]
+  pull_request:
+    branches: [ trunk, main ]
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy Linter
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run Tests
+        run: cargo test --all-targets --verbose

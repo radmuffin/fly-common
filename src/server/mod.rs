@@ -109,18 +109,20 @@ impl FlyServer {
             .route("/health", get(health_check))
             .route("/healthz", get(health_check))
             .route("/up", get(health_check))
-            .route("/api/info", get(move || {
-                let info_clone = info.clone();
-                async move { Json(info_clone) }
-            }))
+            .route(
+                "/api/info",
+                get(move || {
+                    let info_clone = info.clone();
+                    async move { Json(info_clone) }
+                }),
+            )
             .merge(embedded_static);
 
         base_router = base_router.merge(self.app_router);
 
         if let Some(static_path) = self.static_dir {
             let index_path = static_path.join("index.html");
-            let static_service = ServeDir::new(&static_path)
-                .fallback(ServeFile::new(index_path));
+            let static_service = ServeDir::new(&static_path).fallback(ServeFile::new(index_path));
             base_router = base_router.fallback_service(static_service);
         }
 

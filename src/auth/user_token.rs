@@ -1,8 +1,4 @@
-use axum::{
-    async_trait,
-    extract::FromRequestParts,
-    http::request::Parts,
-};
+use axum::{async_trait, extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::ops::Deref;
@@ -71,10 +67,10 @@ where
             for pair in query.split('&') {
                 let mut it = pair.split('=');
                 if let (Some(k), Some(v)) = (it.next(), it.next()) {
-                    if k == "token" || k == "user_token" || k == "x-user-token" {
-                        if !v.trim().is_empty() {
-                            return Ok(UserToken::new(v));
-                        }
+                    if (k == "token" || k == "user_token" || k == "x-user-token")
+                        && !v.trim().is_empty()
+                    {
+                        return Ok(UserToken::new(v));
                     }
                 }
             }
