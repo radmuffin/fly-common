@@ -62,6 +62,32 @@ pub struct AppInfo {
     pub license: Option<String>,
 }
 
+/// Anonymous user profile for multi-device sync and shared sessions.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct UserProfile {
+    pub user_token: String,
+    pub name: String,
+    pub avatar: String,
+    pub color: String,
+}
+
+/// Request payload to update an anonymous user profile.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateUserProfileRequest {
+    pub name: Option<String>,
+    pub avatar: Option<String>,
+    pub color: Option<String>,
+}
+
+/// Collaborator representation for shared documents, collections, or trips.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CollaboratorProfile {
+    pub name: String,
+    pub avatar: String,
+    pub color: String,
+    pub is_owner: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
