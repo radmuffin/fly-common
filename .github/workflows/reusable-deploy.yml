@@ -1,0 +1,57 @@
+name: Reusable Fly.io CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+        description: "Target Fly.io application name"
+      image_name:
+        required: false
+        type: string
+        default: ""
+        description: "Custom Docker image tag"
+    secrets:
+      FLY_API_TOKEN:
+        required: true
+        description: "Fly.io Auth Token"
+
+jobs:
+  check-and-test:
+    name: Backend Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cargo Check
+        run: cargo check --all-targets
+
+      - name: Cargo Test
+        run: cargo test --all-targets
+
+      - name: Cargo Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  deploy:
+    name: Deploy to Fly.io
+    needs: [check-and-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --app ${{ inputs.app_name }} --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
