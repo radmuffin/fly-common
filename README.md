@@ -10,15 +10,21 @@
 
 ---
 
-## ✨ Features
+## ✨ Features & Modular Tooling
+
+`fly-common` is designed as a modular Swiss Army knife. The core stays minimal, while optional tools can be enabled via Cargo feature flags:
 
 - **🚀 Axum + FlyServer**: Preconfigured port binding, graceful shutdown (`SIGTERM`/`SIGINT`), and `/healthz` machine health checks.
 - **🛡️ SSRF & Security Shield**: Hardened outbound HTTP client, RFC-1918 / cloud-metadata blocking, and automatic security headers (`nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin`).
 - **🗄️ Fly SQLite (`FlyDb`)**: Automatic Write-Ahead Logging (WAL) configuration, foreign keys, synchronous mode, and migration helpers.
 - **🔑 Anonymous Device Token (`UserToken`)**: Zero-friction user onboarding using cryptographic device tokens (`X-User-Token`) for instant state persistence without passwords.
-- **👤 User Profile & Collaborator Models**: Generic `UserProfile`, `UpdateUserProfileRequest`, and `CollaboratorProfile` models for multi-device sync and real-time collaboration.
+- **👤 User Profile & Collaborators**: Generic `UserProfile`, `UpdateUserProfileRequest`, and `CollaboratorProfile` models for multi-device sync.
+- **📱 Zero-Dependency SVG QR Code (`fly_common::qr`)**: Fast, pure Rust mathematical SVG QR code generation for pairing links and mobile sync.
+- **🔍 Link Metadata & OpenGraph (`features = ["scraper"]`)**: Deterministic OpenGraph, Twitter Card, and JSON-LD microdata scraper with Send-safe tree dropping.
+- **⚡ Real-Time Collaboration Hub (`features = ["ws"]`)**: Lightweight WebSocket pub/sub broadcasting hub for multi-user collaboration rooms and live state updates.
+- **👥 Document & List Sharing Protocol (`features = ["sync"]`)**: UUIDv4 share token generators and collaborative resource schemas.
+- **🗂️ Universal CSV & Batch Streamer (`features = ["io"]`)**: Streaming CSV deserializer and SQLite transaction chunking.
 - **🎨 Frontend Shell (Vanilla ES6)**: Zero-build UI helpers (`FlyToast`, `FlyTheme`, `FlyClient`) and design tokens.
-- **⚡ Reusable GitHub Workflows & CI**: Standardized CI workflow with automated `cargo test`, `clippy`, and formatting gates.
 
 ---
 
@@ -28,7 +34,12 @@
 
 ```toml
 [dependencies]
-fly_common = { git = "https://github.com/radmuffin/fly-common", tag = "v0.1.0" }
+# Minimal Core
+fly_common = { git = "https://github.com/radmuffin/fly-common" }
+
+# Or with specific modular features:
+# fly_common = { git = "https://github.com/radmuffin/fly-common", features = ["ws", "scraper", "sync", "io"] }
+# fly_common = { git = "https://github.com/radmuffin/fly-common", features = ["full"] }
 ```
 
 ### 2. Backend Example

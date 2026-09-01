@@ -368,3 +368,63 @@ fn test_safe_http_client_builder() {
     // Verify client was constructed
     let _ = client;
 }
+
+#[test]
+fn test_pure_rust_qr_svg_generator() {
+    let qr = generate_qr_svg("https://blist-radmuffin.fly.dev/?sync=usr_test", 240, 2);
+    assert!(qr.svg.contains("<svg"));
+    assert!(qr.svg.contains("viewBox="));
+    assert!(qr.data_url.starts_with("data:image/svg+xml;charset=utf-8,"));
+    assert_eq!(qr.size, 240);
+}
+
+#[cfg(feature = "sync")]
+#[test]
+fn test_sync_token_generation() {
+    let share_tok = generate_share_token();
+    assert_eq!(share_tok.len(), 32);
+
+    let user_tok = generate_user_token("usr_");
+    assert!(user_tok.starts_with("usr_"));
+    assert_eq!(user_tok.len(), 36);
+}
+
+#[cfg(feature = "ws")]
+#[tokio::test]
+async fn test_ws_hub_integration() {
+    let hub = BroadcastHub::new(32);
+    let mut sub = hub.subscribe("room_alpha");
+
+    let msg = WsMessage {
+        room: "room_alpha".to_string(),
+        event: "doc_updated".to_string(),
+        sender_token: Some("usr_creator".to_string()),
+        payload: serde_json::json!({ "version": 2, "delta": "added paragraph" }),
+    };
+
+    let delivered = hub.broadcast(msg).expect("broadcast");
+    assert_eq!(delivered, 1);
+
+    let received = sub.recv().await.expect("recv");
+    assert_eq!(received.event, "doc_updated");
+    assert_eq!(received.payload["version"], 2);
+}
+
+#[cfg(feature = "io")]
+#[test]
+fn test_csv_and_chunking_integration() {
+    #[derive(Debug, serde::Deserialize, PartialEq, Eq)]
+    struct TaskItem {
+        title: String,
+        status: String,
+    }
+
+    let csv_content = "title,status\nBuild Fly App,In Progress\nDeploy to Production,Done\n";
+    let tasks: Vec<TaskItem> = parse_csv(csv_content.as_bytes()).expect("parse csv");
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].title, "Build Fly App");
+    assert_eq!(tasks[1].status, "Done");
+
+    let chunked: Vec<_> = chunk_slice(&tasks, 1).collect();
+    assert_eq!(chunked.len(), 2);
+}
