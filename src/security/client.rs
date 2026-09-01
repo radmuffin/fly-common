@@ -3,9 +3,16 @@ use crate::security::ssrf::validate_parsed_url;
 
 /// Builds a hardened `reqwest::Client` with SSRF redirect filtering, reasonable timeouts,
 /// and browser-like user agent.
-pub fn build_safe_http_client(timeout: Duration, user_agent: Option<&str>) -> reqwest::Client {
+pub fn build_safe_http_client(timeout: Duration) -> reqwest::Client {
+    build_safe_http_client_with_ua(timeout, None)
+}
+
+/// Builds a hardened `reqwest::Client` with custom user agent and SSRF redirect protection.
+pub fn build_safe_http_client_with_ua(timeout: Duration, user_agent: Option<&str>) -> reqwest::Client {
     let mut headers = reqwest::header::HeaderMap::new();
-    let ua = user_agent.unwrap_or("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 FlyApp/0.1.0");
+    let ua = user_agent.unwrap_or(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 FlyApp/0.1.0"
+    );
     if let Ok(ua_val) = reqwest::header::HeaderValue::from_str(ua) {
         headers.insert(reqwest::header::USER_AGENT, ua_val);
     }

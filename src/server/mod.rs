@@ -1,7 +1,8 @@
 use axum::{
     extract::DefaultBodyLimit,
+    http::header::{CACHE_CONTROL, CONTENT_TYPE},
     middleware,
-    response::Json,
+    response::{IntoResponse, Json, Response},
     routing::get,
     Router,
 };
@@ -97,6 +98,12 @@ impl FlyServer {
             license: Some("MIT".into()),
         });
 
+        // Embedded base frontend assets under /_fly/*
+        let embedded_static = Router::new()
+            .route("/_fly/fly-base.css", get(serve_fly_css))
+            .route("/_fly/fly-ui.js", get(serve_fly_ui_js))
+            .route("/_fly/fly-device-sync.js", get(serve_fly_device_sync_js));
+
         // Base health routes for Fly.io machine health checks (/health, /healthz, /up)
         let mut base_router = Router::new()
             .route("/health", get(health_check))
@@ -105,7 +112,8 @@ impl FlyServer {
             .route("/api/info", get(move || {
                 let info_clone = info.clone();
                 async move { Json(info_clone) }
-            }));
+            }))
+            .merge(embedded_static);
 
         base_router = base_router.merge(self.app_router);
 
@@ -146,6 +154,40 @@ async fn health_check() -> Json<Value> {
         "status": "ok",
         "timestamp": chrono::Utc::now().to_rfc3339()
     }))
+}
+
+// Embedded static asset handlers
+async fn serve_fly_css() -> Response {
+    (
+        [
+            (CONTENT_TYPE, "text/css; charset=utf-8"),
+            (CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_str!("../../static/fly-base.css"),
+    )
+        .into_response()
+}
+
+async fn serve_fly_ui_js() -> Response {
+    (
+        [
+            (CONTENT_TYPE, "application/javascript; charset=utf-8"),
+            (CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_str!("../../static/fly-ui.js"),
+    )
+        .into_response()
+}
+
+async fn serve_fly_device_sync_js() -> Response {
+    (
+        [
+            (CONTENT_TYPE, "application/javascript; charset=utf-8"),
+            (CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_str!("../../static/fly-device-sync.js"),
+    )
+        .into_response()
 }
 
 /// Listens for SIGINT (Ctrl+C) and SIGTERM (Fly.io machine termination).
